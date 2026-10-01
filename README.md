@@ -38,8 +38,23 @@ allows starts from 9:00 to 11:00.
   nothing free are listed under the table.
 - **Field Size and Cost:** these cover only the field sizes that actually had a free court in that
   window. They show "—" when a venue has no slot.
-- **Google Sheet:** the results are also saved to Google Drive as a sheet named "Available Ultimate
-  Frisbee venues", which is replaced on each run. Change the name in `SKILL.md` if you like.
+- **Google Sheet:** the results are also saved to **your own** Google Drive, through your Drive
+  connector, as a sheet named **"Turf Finder results"**. If a file with that name already exists,
+  the skill asks before replacing it. Without a Drive connector, you get a local `.xlsx` instead.
+
+### Optional settings
+
+Create `.claude/skills/turf-finder/settings.local.md`. It's git-ignored, so your settings stay on
+your machine:
+
+```
+sheet_name: My turf slots
+replace_without_asking: true
+```
+
+- `sheet_name` — the Drive file name to use. Default: `Turf Finder results`.
+- `replace_without_asking` — set to `true` to skip the "replace existing file?" question. Default:
+  `false`.
 
 ## How it checks availability
 

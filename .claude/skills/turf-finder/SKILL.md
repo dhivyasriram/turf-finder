@@ -1,6 +1,6 @@
 ---
 name: turf-finder
-description: Finds football turf/ground slots on Playo (playo.co) in Bangalore. Takes three optional inputs in any order or phrasing: a date (defaults to the next upcoming Sunday), one or more specific venue names (defaults to searching South and Central Bangalore for the top 5 options), and a time range for the start time, e.g. "9am to 11am" (defaults to 7-9am on Saturdays/Sundays; on a weekday date with no time given, the skill asks for one before searching). When venues are named, only those venues are checked. Looks for continuous 90-minute slots (or a duration the user states) starting within the time range. Outputs a table (Venue Name, Field Size, Available Time Slots, Cost, Location) in chat and saves it as a Google Sheet on Drive named "Available Ultimate Frisbee venues". Trigger this whenever the user asks to find a turf, football ground, or playing slot in Bangalore, mentions booking football on Playo, or asks "/turf-finder" (with or without a date and/or venue names, e.g. "/turf-finder Tackle and Games Period on Oct 11" or "/turf-finder Oct 7 6pm to 8pm"), even if they don't spell out every filter each time — reuse the defaults below.
+description: Finds football turf/ground slots on Playo (playo.co) in Bangalore. Takes three optional inputs in any order or phrasing: a date (defaults to the next upcoming Sunday), one or more specific venue names (defaults to searching South and Central Bangalore for the top 5 options), and a time range for the start time, e.g. "9am to 11am" (defaults to 7-9am on Saturdays/Sundays; on a weekday date with no time given, the skill asks for one before searching). When venues are named, only those venues are checked. Looks for continuous 90-minute slots (or a duration the user states) starting within the time range. Outputs a table (Venue Name, Field Size, Available Time Slots, Cost, Location) in chat and saves it as a Google Sheet in the user's own Google Drive (default name "Turf Finder results", configurable). Trigger this whenever the user asks to find a turf, football ground, or playing slot in Bangalore, mentions booking football on Playo, or asks "/turf-finder" (with or without a date and/or venue names, e.g. "/turf-finder Tackle and Games Period on Oct 11" or "/turf-finder Oct 7 6pm to 8pm"), even if they don't spell out every filter each time — reuse the defaults below.
 ---
 
 # Turf Finder
@@ -377,22 +377,42 @@ Present results in exactly this column order, matching the format the user expec
 
 ## 6. Save to a Google Sheet on Drive
 
-The user wants this saved as a Google Sheet in their Drive, filed under a fixed name:
-**"Available Ultimate Frisbee venues"** — yes, that name says Ultimate Frisbee even though the
-skill searches football; that's deliberate (the user confirmed keeping the football search but
-labeling the output that way), not a bug to fix.
+Save the results as a Google Sheet in the Drive of **whoever is running the skill** (via their own
+Drive connector), under a fixed name so repeat runs keep one current file.
+
+**Settings.** Before this step, check for an optional local settings file next to this skill:
+`.claude/skills/turf-finder/settings.local.md` (it is git-ignored, so it's personal to one install
+and never published). It may contain:
+
+```
+sheet_name: <file title to use>
+replace_without_asking: true | false
+```
+
+- `sheet_name` — the Drive file title. **Default if absent: `Turf Finder results`.**
+- `replace_without_asking` — whether an existing file with that exact title may be replaced without
+  a confirmation. **Default if absent: `false`** (ask first).
+
+Below, **SHEET_NAME** means the resolved title.
 
 This is a Google Drive connector's file tools (`create_file`, `search_files`, `trash_file`, etc.)
 — they're deferred, so load them first with `ToolSearch({query: "select:<tool names>"})` if they
 aren't already available in context.
 
 1. **Look for an existing file with that exact title** via `search_files` with query
-   `title = 'Available Ultimate Frisbee venues'`. The name is fixed across runs (no date suffix),
-   so a repeat run should replace the old one rather than pile up duplicates.
-2. If found, **trash it** (`trash_file`) before creating the new one — `update_file` only changes
-   metadata (title/parent), it cannot replace a file's content, so trash-and-recreate is the only
-   way to keep one file current.
-3. **Create the new file** with `create_file`: `title` = `"Available Ultimate Frisbee venues"`,
+   `title = '<SHEET_NAME>'` (owned by the user: add `and owner = 'me'`). The name is fixed across
+   runs (no date suffix), so a repeat run should replace the old one rather than pile up duplicates.
+2. **If one is found, decide whether to replace it:**
+   - `replace_without_asking: true` and exactly one match → trash it (`trash_file`) and continue.
+   - Otherwise **ask the user first**, naming the file and linking it, e.g. "A file named 'Turf
+     Finder results' already exists in your Drive — replace it (the old one goes to Drive trash),
+     or save this as a new file?" If they say replace, trash it. If they say new file, use
+     `SHEET_NAME (YYYY-MM-DD)` with the target date instead and don't trash anything.
+   - More than one match → never trash any of them automatically; ask which (if any) to replace.
+   Trash-and-recreate is needed because `update_file` only changes metadata (title/parent), it
+   cannot replace a file's content. Trash is recoverable from Drive, but never trash a file the
+   user hasn't agreed to replace (directly, or via the setting).
+3. **Create the new file** with `create_file`: `title` = SHEET_NAME,
    `contentMimeType: "text/csv"`, and `textContent` built from the output table (step 5) as CSV —
    header row `Venue Name,Field Size,Available Time Slots,Cost,Location`, one data row per venue.
    Quote any cell containing a comma (the Cost column often has one, e.g.
@@ -411,9 +431,9 @@ aren't already available in context.
      the conversion didn't evaluate it and you should investigate rather than leaving raw formulas.
 4. Report back the `viewUrl` from the response as a clickable link so the user can open it directly.
 
-Creating this file is a "regular" action (no explicit per-run confirmation needed) as long as it's
-just a personal data file with a fixed name the user asked for by name — it isn't sending anything
-to anyone else. If the connector isn't available at all in a given session, fall back to building a
+Creating this file is a "regular" action (no explicit per-run confirmation needed): it's a
+personal data file in the user's own Drive and isn't sent to anyone else. Replacing an existing
+file is the only part that needs consent (step 2). If the connector isn't available at all in a given session, fall back to building a
 local `.xlsx` (see the xlsx skill) and hand it to the user via file delivery instead, explaining
 that direct Drive upload needs the connector.
 
